@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_app_teste/post/post_page.dart';
 import 'package:hasura_connect/hasura_connect.dart';
 
 void main() => runApp(MyApp());
@@ -30,71 +31,53 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
 
-  HasuraConnect conexao = HasuraConnect('https://aplicativoteste1.herokuapp.com/v1/graphql');
+  HasuraConnect _conexao = HasuraConnect('http://aplicativoteste1.herokuapp.com/v1/graphql');
+
+  bool carregamento = false;
 
   @override
   void initState(){
     super.initState();
 
-    this.getGraphql();
-    
+    this.carregamentoFuncao();
   }
 
-  ///MÉTODO GET
-  ///RECEBENDO DADOS DE TABELAS GRAPHQL
-  ///
-  ///
+  Future carregamentoFuncao() async {
 
-  void getGraphql() {
-    var snapshot = conexao.subscription(variavelTabela);
+    await getDados();
 
-    snapshot.listen((data) {
-      print(data);
-      print('${data["data"]["tabela_teste"][0]["nome"]}');
+    setState(() {
+      carregamento = true;
     });
+
   }
 
-  String variavelTabela = """
+  var tabela;
+
+  Future getDados() async {
+
+    var snapshot = _conexao.subscription(subcriptionTabela);
+
+    snapshot.listen((data){
+      print(data);
+      setState(() {
+        tabela = data['data'];
+      });
+    });
+
+  }
+
+  String subcriptionTabela = """
     subscription {
-      tabela_teste {
+      tabela_post {
         codigo
         nome
+        valor
       }
     }
   """;
 
-  ///MÉTODO POST
-  ///ENVIANDO DADOS PARA TABELAS GRAPHQL (HEROKU)
-  ///
-  ///
-
   GlobalKey<ScaffoldState> scaffoldState = GlobalKey<ScaffoldState>();
-
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final nomeForm = TextEditingController();
-  final valorForm = TextEditingController();
-
-  Future<void> createState(nome, valor) async {
-    var data = await conexao.mutation(query("$nome", "$valor"));
-
-    print(data);
-  }
-
-  String query(nome, valor) {
-    return (
-      """
-        mutation MyMutation {
-          insert_tabela_post(objects: {nome: "$nome", valor: "$valor"}) {
-            returning {
-              codigo
-              nome
-              valor
-            }
-          }
-        }
-      """
-    );
-  }
 
 
   @override
@@ -103,80 +86,44 @@ class _MyHomePageState extends State<MyHomePage> {
       home: Scaffold(
         key: scaffoldState,
         backgroundColor: Colors.white,
-        body: Form(
-          key: _formKey,
-          child: Container(
-            height: MediaQuery.of(context).size.height,
-            width: MediaQuery.of(context).size.width,
-            padding: EdgeInsets.fromLTRB(20, 15, 20, 15),
-            color: Colors.white,
-            child: Column(
+        body: carregamento == false ? Center(
+          child: CircularProgressIndicator(
+            //backgroundColor: Colors.deepOrange,
+          ),
+        )
+        : Column(
+          children: <Widget>[
+            Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(15, 25, 15, 0),
+                  child: ListView.builder(
+                      itemCount: tabela['tabela_post'].length,
+                      itemBuilder: (BuildContext context, int index){
+                        return Column(
+                          children: <Widget>[
+                            Row(
+                              mainAxisSize: MainAxisSize.max,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Text('${index+1}. ${tabela['tabela_post'][index]['nome']}',
+                                  style: TextStyle(fontSize: 15, ),
+                                ),
+                                Text('${tabela['tabela_post'][index]['valor']}'),
+                              ],
+                            ),
+                            Divider(
+                              height: 10,
+                            ),
+                          ],
+                        );
+                      }
+                  ),
+                ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.max,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Container(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.max,
-                    children: <Widget>[
-                      Text('Nome: ', style: TextStyle(fontSize: 16),),
-
-                    ],
-                  ),
-                ),
-                TextFormField(
-                  controller: nomeForm,
-                  style: TextStyle(color: Colors.black),
-                  textAlign: TextAlign.left,
-                  obscureText: false,
-                  decoration: InputDecoration(
-                    //border: InputBorder.none,
-                    hintText: 'seu nome',
-                    hintStyle: TextStyle(color: Colors.grey),
-                    //labelText: 'Informe seu Nome'
-                  ),
-                  // ignore: missing_return
-                  validator: (value) {
-                    if (value.isEmpty) {
-                      return 'Campo não pode ser vazio';
-                    }
-                  },
-                ),
-
-                SizedBox(height: 30,),
-
-                Row(
-                  mainAxisSize: MainAxisSize.max,
-                  children: <Widget>[
-                    Text('Valor: ', style: TextStyle(fontSize: 16),),
-
-                  ],
-                ),
-
-
-                TextFormField(
-                  controller: valorForm,
-                  style: TextStyle(color: Colors.black),
-                  textAlign: TextAlign.left,
-                  keyboardType: TextInputType.number,
-                  obscureText: false,
-                  decoration: InputDecoration(
-                    //border: InputBorder.none,
-                    hintText: '10',
-                    hintStyle: TextStyle(color: Colors.grey),
-
-                  ),
-                  // ignore: missing_return
-                  validator: (value) {
-                    if (value.isEmpty) {
-                      return 'Campo não pode ser vazio';
-                    }
-                  },
-                ),
-
-
-
-                SizedBox(height: 30,),
-
-
                 Container(
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.transparent),
@@ -187,9 +134,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: FlatButton(
 
                     onPressed: () async {
-                      await createState(nomeForm.text, valorForm.text);
-
-                      scaffoldState.currentState.showSnackBar(SnackBar(content: Text('Dados Enviados')));
+                      Navigator.push(context,
+                        MaterialPageRoute(builder: (context) => postPage())
+                      );
                     },
                     child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -197,22 +144,19 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
                           Icon(
-                            Icons.send,
+                            Icons.add,
                             color: Colors.white,
                           ),
                           Text(
-                            "  Enviar",
+                            "  Inserir novos dados",
                             style: TextStyle(color: Colors.white),
                           )
                         ]),
                   ),
                 ),
-
-
-
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
